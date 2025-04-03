@@ -1,140 +1,100 @@
-class Buscaminas (val filas:Int, val columnas:Int, val Num_Minas:Int){
+import java.util.Scanner
 
-    private data class Celda(
-        var tienemina: Boolean = false,
-        var destapada:Boolean = false,
-        var bandera:Boolean = false,
-        var minasAdyacentes:Int=0
-    )
+fun main() {
+    val buscaminas = InterfaceBuscaminas(10, 10, 10)
+    buscaminas.jugar()
+}
 
-    private val tablero = Array(filas){
-        Array(columnas){
-            Celda()
-        }
-    }
-    private var juegoTerminado= false
-    private var juegoGanado=false
-    private var celdasDestapadas = 0
-    private var minasColocadas=false
+class InterfaceBuscaminas(private val filas: Int, private val columnas: Int, private val numMinas: Int) {
+    private val juego: Buscaminas = Buscaminas(filas, columnas, numMinas)
+    private val scanner: Scanner = Scanner(System.`in`)
 
-    init {
-        require(filas > 0 && columnas > 0) { "El tablero debe tener al menos 1 fila y 1 columna" }
-        require(Num_Minas < filas * columnas) { "Demasiadas minas para el tamaño del tablero" }
-    }
-    fun estaTerminado() = juegoTerminado
-    fun esGanado() = juegoGanado
+    fun jugar() {
+        println("¡Bienvenido al Buscaminas!")
+        println("Instrucciones facilitas:")
+        println("- Ingresa las coordenadas de la C que quieres destapar")
+        println("- Las filas y columnas van de 0 a ${filas-1}")
+        println("- ¡Cuidado con las *!\n")
 
-    fun destapar(fila: Int, columna: Int) {
-        if (juegoTerminado || !esPosicionValida(fila, columna)) return
+        while (!juego.isJuegoTerminado()) {
+            mostrarTablero(juego.getTableroDestapado(), juego.getTableroNum())
 
-        if (!minasColocadas) {
-            colocarMinas(fila, columna)
-            minasColocadas = true
-        }
+            try {
+                print("Fila (0-${filas-1}): ")
+                val fila = scanner.nextInt()
+                print("Columna (0-${columnas-1}): ")
+                val columna = scanner.nextInt()
 
-        val celda = tablero[fila][columna]
-        if (celda.destapada || celda.bandera) return
+                if (fila !in 0 until filas || columna !in 0 until columnas) {
+                    println("No vale, pon algo válido.")
+                    continue
+                }
 
-        if (celda.tienemina) {
-            terminarJuego(ganado = false)
-            return
+                juego.destaparCasilla(fila, columna)
+            } catch (e: Exception) {
+                println("No vale, pon algo válido.")
+                scanner.nextLine() // Limpiar
+            }
         }
 
-        destaparCelda(fila, columna)
+        mostrarTableroFinal()
 
-        if (celdasDestapadas == filas * columnas - Num_Minas) {
-            terminarJuego(ganado = true)
-        }
-    }
-
-    fun alternarBandera(fila: Int, columna: Int) {
-        if (juegoTerminado || !esPosicionValida(fila, columna)) return
-        val celda = tablero[fila][columna]
-        if (!celda.destapada) {
-            celda.bandera = !celda.bandera
+        if (juego.isJuegoGanado()) {
+            println("Has ganado :D!.")
+        } else {
+            println("¡Boom! Chao pescao")
         }
     }
 
-    fun obtenerEstadoCelda(fila: Int, columna: Int): Char {
-        if (!esPosicionValida(fila, columna)) return ' '
-        val celda = tablero[fila][columna]
+    private fun mostrarTablero(tableroDestapado: Array<BooleanArray>, tableroNum: Array<IntArray>) {
+        println("\nTablero:")
+        print("   ")
+        for (j in 0 until columnas) print("$j ")
+        println()
 
-        return when {
-            juegoTerminado && celda.tienemina -> '*'
-            celda.bandera -> 'B'
-            !celda.destapada -> '.'
-            celda.tienemina -> '*' // No debería ocurrir
-            celda.minasAdyacentes > 0 -> '0' + celda.minasAdyacentes
-            else -> ' '
-        }
-    }
-
-    private fun esPosicionValida(fila: Int, columna: Int) =
-        fila in 0 until filas && columna in 0 until columnas
-
-    private fun colocarMinas(filaExcluida: Int, columnaExcluida: Int) {
-        val posiciones = mutableListOf<Pair<Int, Int>>().apply {
-            for (f in 0 until filas) {
-                for (c in 0 until columnas) {
-                    if (f != filaExcluida || c != columnaExcluida) {
-                        add(f to c)
+        for (i in 0 until filas) {
+            print("$i ")
+            for (j in 0 until columnas) {
+                if (tableroDestapado[i][j]) {
+                    when (tableroNum[i][j]) {
+                        -1 -> print("*") // Mina (solo se muestra al final)
+                        0 -> print("-")  // Casilla vacía
+                        else -> print(" ${tableroNum[i][j]}") // Número de minas adyacentes
                     }
+                } else {
+                    print("C") // Casilla no destapada
                 }
+                print(" ")
             }
-        }
-
-        posiciones.shuffle()
-
-        repeat(Num_Minas) { i ->
-            if (i >= posiciones.size) return@repeat
-            val (f, c) = posiciones[i]
-            tablero[f][c].tienemina = true
-            actualizarMinasAdyacentes(f, c)
+            println()
         }
     }
 
-    private fun actualizarMinasAdyacentes(fila: Int, columna: Int) { //rarete
-        for (f in (fila - 1).coerceAtLeast(0)..(fila + 1).coerceAtMost(filas - 1)) {
-            for (c in (columna - 1).coerceAtLeast(0)..(columna + 1).coerceAtMost(columnas - 1)) {
-                if (f != fila || c != columna) {
-                    tablero[f][c].minasAdyacentes++
+    private fun mostrarTableroFinal() {
+        val tableroDestapado = juego.getTableroDestapado()
+        val tableroNum = juego.getTableroNum()
+
+        println("\nTablero Final:")
+        print("   ")
+        for (j in 0 until columnas) print("$j ")
+        println()
+
+        for (i in 0 until filas) {
+            print("$i ")
+            for (j in 0 until columnas) {
+                if (tableroNum[i][j] == -1) {
+                    print("*") // Mostrar todas las minas al final
+                } else if (tableroDestapado[i][j]) {
+                    when (tableroNum[i][j]) {
+                        0 -> print("-")
+                        else -> print(" ${tableroNum[i][j]}")
+                    }
+                } else {
+                    print("C")
                 }
+                print(" ")
             }
-        }
-    }
-
-    private fun destaparCelda(fila: Int, columna: Int) {
-        if (!esPosicionValida(fila, columna)) return
-        val celda = tablero[fila][columna]
-        if (celda.destapada || celda.bandera || celda.tienemina) return
-
-        celda.destapada = true
-        celdasDestapadas++
-
-        if (celda.minasAdyacentes == 0) {
-            destaparCeldasAdyacentes(fila, columna)
-        }
-    }
-
-    private fun destaparCeldasAdyacentes(fila: Int, columna: Int) { //cambiar
-        for (f in (fila - 1).coerceAtLeast(0)..(fila + 1).coerceAtMost(filas - 1)) {
-            for (c in (columna - 1).coerceAtLeast(0)..(columna + 1).coerceAtMost(columnas - 1)) {
-                destaparCelda(f, c)
-            }
-        }
-    }
-
-    private fun terminarJuego(ganado: Boolean) {
-        juegoTerminado = true
-        juegoGanado = ganado
-        if (!ganado) revelarMinas()
-    }
-
-    private fun revelarMinas() {
-        for (fila in tablero) {
-            for (celda in fila) {
-                if (celda.tienemina) celda.destapada = true
-            }
+            println()
         }
     }
 }

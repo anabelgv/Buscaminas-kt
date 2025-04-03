@@ -1,86 +1,87 @@
-fun main() {
-    val scanner = java.util.Scanner(System.`in`)
+import java.util.Random
 
-    println("=== BUSCAMINAS ===")
-    val (filas, columnas, minas) = pedirConfiguracion(scanner)
+//parte lógica
 
-    try {
-        val juego = Buscaminas(filas, columnas, minas)
-        var primeraJugada = true
+class Buscaminas(private val filas: Int, private val columnas: Int, private val numMinas: Int) {
+    private val tableroNum: Array<IntArray> = Array(filas) { IntArray(columnas) }
+    private val tableroDestapado: Array<BooleanArray> = Array(filas) { BooleanArray(columnas) }
+    private var juegoTerminado: Boolean = false
+    private var juegoGanado: Boolean = false
+    private var casillasDestapadas: Int = 0
 
-        while (!juego.estaTerminado()) {
-            imprimirTablero(juego)
+    init {
+        inicializarTablero()
+        colocarMinasYActualizar()
+    }
 
-            when (pedirAccion(scanner)) {
-                1 -> procesarDestapar(juego, scanner, primeraJugada).also { primeraJugada = false }
-                2 -> procesarBandera(juego, scanner)
+    private fun inicializarTablero() {
+        for (i in 0 until filas) {
+            for (j in 0 until columnas) {
+                tableroNum[i][j] = 0
+                tableroDestapado[i][j] = false
             }
         }
-
-        imprimirTablero(juego)
-        println(if (juego.esGanado()) "¡GANASTE!" else "¡PERDISTE!")
-    } catch (e: IllegalArgumentException) {
-        println("Error: ${e.message}")
-    }
-}
-
-private fun pedirConfiguracion(scanner: java.util.Scanner): Triple<Int, Int, Int> {
-    fun leerNumero(mensaje: String, default: Int): Int {
-        print("$mensaje (default $default): ")
-        return scanner.nextLine().toIntOrNull() ?: default
     }
 
-    val filas = leerNumero("Filas", 8)
-    val columnas = leerNumero("Columnas", 8)
-    val minas = leerNumero("Minas", 10)
+    private fun colocarMinasYActualizar() {
+        val random = Random()
+        var minasColocadas = 0
 
-    return Triple(filas, columnas, minas)
-}
+        while (minasColocadas < numMinas) {
+            val fila = random.nextInt(filas)
+            val columna = random.nextInt(columnas)
 
-private fun imprimirTablero(juego: Buscaminas) {
-    print("  ")
-    for (c in 0 until juego.columnas) print("$c ")
-    println()
+            if (tableroNum[fila][columna] != -1) {
+                tableroNum[fila][columna] = -1 // -1 representa una mina
+                minasColocadas++
 
-    for (f in 0 until juego.filas) {
-        print("$f ")
-        for (c in 0 until juego.columnas) {
-            print("${juego.obtenerEstadoCelda(f, c)} ")
+                // Actualizar celdas vecinas
+                for (i in maxOf(0, fila - 1)..minOf(filas - 1, fila + 1)) {
+                    for (j in maxOf(0, columna - 1)..minOf(columnas - 1, columna + 1)) {
+                        if (tableroNum[i][j] != -1) {
+                            tableroNum[i][j]++
+                        }
+                    }
+                }
+            }
         }
-        println()
     }
-}
 
-private fun pedirAccion(scanner: java.util.Scanner): Int {
-    println("\n1. Destapar")
-    println("2. Bandera")
-    print("Elige: ")
-    return scanner.nextLine().toIntOrNull() ?: 1
-}
+    fun destaparCasilla(fila: Int, columna: Int) {
+        if (!juegoTerminado && !tableroDestapado[fila][columna]) {
+            tableroDestapado[fila][columna] = true
 
-private fun procesarDestapar(juego: Buscaminas, scanner: java.util.Scanner, primeraJugada: Boolean) {
-    val (f, c) = pedirCoordenadas(scanner, "Destapar (fila columna): ", juego.filas, juego.columnas)
-    juego.destapar(f, c)
-    if (primeraJugada) println("¡Primer movimiento! Minas colocadas.")
-}
+            if (tableroNum[fila][columna] == 0) {
+                destaparVecinos(fila, columna)
+            }
 
-private fun procesarBandera(juego: Buscaminas, scanner: java.util.Scanner) {
-    val (f, c) = pedirCoordenadas(scanner, "Bandera (fila columna): ", juego.filas, juego.columnas)
-    juego.alternarBandera(f, c)
-}
-
-private fun pedirCoordenadas(
-    scanner: java.util.Scanner,
-    mensaje: String,
-    maxFilas: Int,
-    maxColumnas: Int
-): Pair<Int, Int> {
-    while (true) {
-        print(mensaje)
-        val input = scanner.nextLine().split(" ").mapNotNull { it.toIntOrNull() }
-        if (input.size == 2 && input[0] in 0 until maxFilas && input[1] in 0 until maxColumnas) {
-            return input[0] to input[1]
+            if (tableroNum[fila][columna] == -1) {
+                juegoTerminado = true
+            } else {
+                casillasDestapadas++
+                if (casillasDestapadas == (filas * columnas) - numMinas) {
+                    juegoTerminado = true
+                    juegoGanado = true
+                }
+            }
         }
-        println("Coordenadas inválidas. Usa: fila (0-${maxFilas - 1}) columna (0-${maxColumnas - 1})")
     }
+
+    private fun destaparVecinos(fila: Int, columna: Int) {
+        for (i in maxOf(0, fila - 1)..minOf(filas - 1, fila + 1)) {
+            for (j in maxOf(0, columna - 1)..minOf(columnas - 1, columna + 1)) {
+                if (!tableroDestapado[i][j]) {
+                    tableroDestapado[i][j] = true
+                    if (tableroNum[i][j] == 0) {
+                        destaparVecinos(i, j)
+                    }
+                }
+            }
+        }
+    }
+
+    fun isJuegoTerminado(): Boolean = juegoTerminado
+    fun isJuegoGanado(): Boolean = juegoGanado
+    fun getTableroDestapado(): Array<BooleanArray> = tableroDestapado
+    fun getTableroNum(): Array<IntArray> = tableroNum
 }
